@@ -1,0 +1,9 @@
+# P1S Camera Relay, by Inigo Dela Vega
+.env
+.DS_Store
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.fdb_latexmk
+*.fls

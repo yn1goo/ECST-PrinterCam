@@ -1,0 +1,149 @@
+% Author: Inigo Dela Vega
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{listings}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible
+}
+
+\title{Broadcasting the Bambu Lab P1S Internal Camera\\\large Research Notes and Implementation Options}
+\author{Inigo Dela Vega}
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+\section{Goal}
+Take the live feed from the P1S chamber camera and make it viewable somewhere other than
+Bambu Studio or Bambu Handy: a browser, VLC, OBS, Home Assistant, or a remote device.
+
+\section{Why the P1S Is Harder Than Other Bambu Printers}
+Bambu printers fall into two camera groups.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lXl@{}}
+\hline
+\textbf{Models} & \textbf{Camera interface} & \textbf{Direct RTSP?} \\
+\hline
+X1, X1C, X1E, P2S, H2 series & RTSPS on port 322 & Yes \\
+A1, A1 Mini, P1P, P1S & Proprietary JPEG frame protocol on port 6000 & No \\
+\hline
+\end{tabularx}
+\end{center}
+
+Consequences for the P1S:
+\begin{itemize}[itemsep=2pt]
+  \item No standard RTSP URL exists, so go2rtc, VLC, and OBS cannot connect to it directly.
+  \item The feed is a sequence of JPEG frames, typically around 1 to 2 fps. Expect a slideshow, not smooth video.
+  \item Bambu Studio's ``Go Live'' OBS feature is not available for the P1 series.
+  \item A translation layer is required: something that speaks the port 6000 protocol and re-serves the frames as MJPEG or RTSP.
+\end{itemize}
+
+\section{Approaches Others Have Used}
+
+\subsection{BambuP1Streamer + go2rtc}
+The most common community approach. BambuP1Streamer (usually run in Docker) uses Bambu's
+\texttt{libBambuSource.so} to pull frames from the printer and hands them to go2rtc, which
+serves a standard MJPEG stream.
+
+\begin{lstlisting}[language={}]
+streams:
+  p1s: "exec:./BambuP1Streamer ./libBambuSource.so ${PRINTER_ADDRESS} ${PRINTER_ACCESS_CODE}"
+\end{lstlisting}
+
+The resulting MJPEG URL takes the form:
+\begin{lstlisting}[language={}]
+http://<host>:1984/api/stream.mjpeg?src=p1s
+\end{lstlisting}
+
+\textbf{Known issue:} chaining a second go2rtc instance to transcode that MJPEG into
+WebRTC or H.264 (for Frigate or Home Assistant) has been reported as unreliable, with
+dropped or grey frames. MJPEG out of the first instance was stable.
+
+\subsection{Bambuddy}
+A self hosted dashboard that provides MJPEG streaming from the built in printer camera and
+can also ingest external network cameras. Lowest effort option for browser viewing.
+
+\subsection{Python library: \texttt{bambu-lab-cloud-api}}
+Provides a \texttt{JPEGFrameStream} class for A1/P1 printers that returns individual JPEG
+frames given the printer IP and LAN access code. Suitable as the ingest layer for a
+custom relay.
+
+\begin{lstlisting}[language=Python]
+from bambulab import JPEGFrameStream
+
+with JPEGFrameStream("192.168.1.100", "access_code") as stream:
+    frame = stream.get_frame()
+\end{lstlisting}
+
+\subsection{LAN Only Mode}
+Some users report a noticeably faster feed when the printer runs in LAN only mode. Results
+vary, and LAN only mode disables cloud features such as remote printing through Handy.
+
+\subsection{External RTSP Camera}
+For real broadcasting (Twitch, Discord, smooth remote viewing), many owners mount an
+inexpensive RTSP camera instead of relying on the internal one. This bypasses the protocol
+problem entirely and gives higher frame rates.
+
+\section{Recommended Architecture}
+\begin{enumerate}[itemsep=2pt]
+  \item \textbf{Ingest:} a small service on a Linux host on the same LAN as the printer pulls
+        JPEG frames from port 6000 (BambuP1Streamer or \texttt{JPEGFrameStream}).
+  \item \textbf{Serve:} re-publish the frames as MJPEG over HTTP, either through go2rtc or a
+        minimal custom server.
+  \item \textbf{Consume:} open the MJPEG URL in a browser, VLC, an OBS browser or media source,
+        or Home Assistant.
+  \item \textbf{Remote access:} reach the relay through a VPN such as Tailscale. Do not
+        port forward it.
+\end{enumerate}
+
+\section{Chosen Implementation: BambuP1Streamer}
+The project will use BambuP1Streamer
+(\url{https://github.com/slynn1324/BambuP1Streamer}). It pulls frames through Bambu's
+plugin library and serves them with go2rtc on port 1984.
+
+\begin{itemize}[itemsep=2pt]
+  \item Tested upstream only on a P1S, on Debian 12 / amd64. ARM hosts are not supported.
+  \item Pins Bambu plugin \texttt{01.04.00.15} and go2rtc \texttt{v1.6.2}.
+  \item Licensed AGPL-3.0.
+  \item Open issues report problems with newer firmware and LAN only mode, so the working
+        firmware version should be recorded once the stream is up.
+\end{itemize}
+
+\begin{lstlisting}[language={}]
+podman build -t bambu_p1_streamer .
+podman run -d --name bambu_p1_streamer --restart unless-stopped \
+  -p 1984:1984 --env-file .env localhost/bambu_p1_streamer
+\end{lstlisting}
+
+Stream URL: \texttt{http://<host>:1984/api/stream.mjpeg?src=p1s}
+
+\section{Security Notes}
+\begin{itemize}[itemsep=2pt]
+  \item The printer's LAN access code grants control of the printer, not just the camera.
+        Keep it in environment variables or a secrets file, never in source control.
+  \item go2rtc and similar relays have little or no built in authentication. Keep them on the
+        LAN and expose them only through a VPN.
+  \item Firmware updates have changed third party local access before. Test after every update.
+\end{itemize}
+
+\section{References}
+\begin{itemize}[itemsep=2pt]
+  \item Bambuddy camera documentation: \url{https://wiki.bambuddy.cool/features/camera/}
+  \item go2rtc issue \#1359 (P1S MJPEG to WebRTC): \url{https://github.com/AlexxIT/go2rtc/issues/1359}
+  \item Bambu Lab Cloud API library: \url{https://github.com/coelacant1/Bambu-Lab-Cloud-API}
+  \item Bambu forum, H2C RTSP thread: \url{https://forum.bambulab.com/t/h2c-rtsp-for-camera/256148}
+  \item Bambu forum, P1P camera thread: \url{https://forum.bambulab.com/t/cant-get-camera-to-work/11084}
+  \item BambuStudio issue \#1536 (RTSP request): \url{https://github.com/bambulab/BambuStudio/issues/1536}
+\end{itemize}
+
+\end{document}
