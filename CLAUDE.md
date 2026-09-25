@@ -11,7 +11,7 @@ Stream the Bambu Lab P1S chamber camera as standard MJPEG so it can be viewed in
 - Blocked on permission. The target printer is a shared student P1S in the makerspace, and its WLAN is not configured under a user account. Get permission from whoever manages the makerspace before reading its access code, connecting to it, or streaming its camera.
 - Until permission is granted, do not ask for, look up, or use the printer's IP or access code, and do not start the container against it.
 - Done so far: relay host identified (see below), upstream cloned to `~/BambuP1Streamer` (commit `7857e5b`), both build downloads confirmed reachable, and a blank `.env` template created at the repo root (mode 600, git ignored).
-- Next once approved: install Podman (`sudo pacman -S --needed podman`), fill in `.env`, check the printer is reachable from the relay host over the makerspace Wi-Fi, then build and run bound to localhost.
+- Next once approved: fill in `.env`, check the printer is reachable from the relay host over the makerspace Wi-Fi, then build and run bound to localhost.
 
 ## Chosen implementation
 
@@ -29,7 +29,7 @@ Use BambuP1Streamer: https://github.com/slynn1324/BambuP1Streamer
 - Network: the makerspace Wi-Fi, a large shared network with many other clients. Treat everyone on it as untrusted. It may also block client to client traffic, so check the printer is reachable before debugging the stream.
 - Relay host: ThinkPad E14 Gen 2, x86_64, running Omarchy (Arch based). This differs from upstream's tested Debian 12 host, but the container itself is Debian based. ARM hosts such as a Raspberry Pi are not supported upstream (open issue #8).
 - Do not target the gaming desktop or the MacBook. One machine, one job.
-- Container runtime: Podman preferred, Docker acceptable. On the relay host Podman is not installed yet; Docker is installed but its daemon is stopped and the user is not in the `docker` group.
+- Container runtime: Podman preferred, Docker acceptable. The relay host uses rootless Podman 6.1.1 (installed and verified 2026-09-25). Docker is also installed but unused: its daemon is stopped and the user is not in the `docker` group.
 - Remote access: Tailscale or similar VPN. Never port forward port 1984.
 
 ## Build and run

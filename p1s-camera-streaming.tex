@@ -141,15 +141,15 @@ Stream URL: \texttt{http://127.0.0.1:1984/api/stream.mjpeg?src=p1s}
         from the makerspace is needed before using its access code or streaming its camera.
   \item \textbf{Relay host:} a ThinkPad E14 Gen 2 (x86\_64) running Omarchy, an Arch based
         distribution. Upstream was tested on Debian 12, but the container itself is Debian
-        based, so the host distribution should matter little. Podman still needs to be
-        installed.
+        based, so the host distribution should matter little. Rootless Podman 6.1.1 is
+        installed and verified.
   \item \textbf{Network:} the makerspace Wi-Fi is a large shared network with many other
         clients, unlike the home LAN assumed earlier. It may block traffic between clients,
         so reachability of the printer from the relay host must be checked first.
   \item \textbf{Done so far:} upstream cloned, both build downloads (Bambu plugin and go2rtc
         binary) confirmed available, and a private secrets file prepared outside source
         control.
-  \item \textbf{Next, once approved:} install Podman, enter the printer's IP and access code,
+  \item \textbf{Next, once approved:} enter the printer's IP and access code,
         check reachability, build, and run bound to localhost.
 \end{itemize}
 
