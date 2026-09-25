@@ -113,26 +113,58 @@ plugin library and serves them with go2rtc on port 1984.
 
 \begin{itemize}[itemsep=2pt]
   \item Tested upstream only on a P1S, on Debian 12 / amd64. ARM hosts are not supported.
-  \item Pins Bambu plugin \texttt{01.04.00.15} and go2rtc \texttt{v1.6.2}.
+  \item Pins Bambu plugin \texttt{01.04.00.15} and go2rtc \texttt{v1.9.14}. Upstream moved
+        from go2rtc \texttt{v1.6.2} to \texttt{v1.9.14} on 1 June 2026, and this project
+        follows upstream.
   \item Licensed AGPL-3.0.
   \item Open issues report problems with newer firmware and LAN only mode, so the working
         firmware version should be recorded once the stream is up.
 \end{itemize}
 
+On a shared network, the port is published on localhost only, so the stream is viewed on
+the relay host itself:
+
 \begin{lstlisting}[language={}]
 podman build -t bambu_p1_streamer .
 podman run -d --name bambu_p1_streamer --restart unless-stopped \
-  -p 1984:1984 --env-file .env localhost/bambu_p1_streamer
+  -p 127.0.0.1:1984:1984 --env-file .env localhost/bambu_p1_streamer
 \end{lstlisting}
 
-Stream URL: \texttt{http://<host>:1984/api/stream.mjpeg?src=p1s}
+Stream URL: \texttt{http://127.0.0.1:1984/api/stream.mjpeg?src=p1s}
+
+\section{Deployment Context and Status}
+\textbf{Status as of 25 September 2026: on hold pending permission.}
+
+\begin{itemize}[itemsep=2pt]
+  \item \textbf{Printer:} a P1S in the makerspace, shared by students as a whole. Its WLAN
+        is not configured under a user account. Because it is shared equipment, permission
+        from the makerspace is needed before using its access code or streaming its camera.
+  \item \textbf{Relay host:} a ThinkPad E14 Gen 2 (x86\_64) running Omarchy, an Arch based
+        distribution. Upstream was tested on Debian 12, but the container itself is Debian
+        based, so the host distribution should matter little. Podman still needs to be
+        installed.
+  \item \textbf{Network:} the makerspace Wi-Fi is a large shared network with many other
+        clients, unlike the home LAN assumed earlier. It may block traffic between clients,
+        so reachability of the printer from the relay host must be checked first.
+  \item \textbf{Done so far:} upstream cloned, both build downloads (Bambu plugin and go2rtc
+        binary) confirmed available, and a private secrets file prepared outside source
+        control.
+  \item \textbf{Next, once approved:} install Podman, enter the printer's IP and access code,
+        check reachability, build, and run bound to localhost.
+\end{itemize}
 
 \section{Security Notes}
 \begin{itemize}[itemsep=2pt]
   \item The printer's LAN access code grants control of the printer, not just the camera.
         Keep it in environment variables or a secrets file, never in source control.
   \item go2rtc and similar relays have little or no built in authentication. Keep them on the
-        LAN and expose them only through a VPN.
+        LAN and expose them only through a VPN. On a shared network such as the makerspace
+        Wi-Fi, bind to localhost only.
+  \item The upstream go2rtc configuration allows API requests from any origin and logs at
+        debug level. Because the stream source is built from the access code, API responses
+        and logs may reveal it. This is still to be verified, and logs should be redacted
+        before they are shared.
+  \item Using shared makerspace equipment requires the makerspace's permission.
   \item Firmware updates have changed third party local access before. Test after every update.
 \end{itemize}
 
