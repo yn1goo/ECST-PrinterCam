@@ -7,3 +7,6 @@
 *.synctex.gz
 *.fdb_latexmk
 *.fls
+
+# Upstream BambuP1Streamer checkout, managed by scripts/build.sh
+upstream/
